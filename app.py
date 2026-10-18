@@ -8,10 +8,8 @@ from telethon.tl.functions.account import UpdateProfileRequest
 API_ID = 39194802
 API_HASH = "45067e7bea2404a8c6fb7166d52e7c21"
 
+# ВСТАВЬ СЮДА СТРОКУ СЕССИИ
 SESSION_STR = "1ApWapzMBu1sAQ94J3CKQvxcb32mSkpg84EDzU3YudunfHdk9AfZ9KfCkkx8xVrKZemTOvs3fH2lMzWLxrEWsbXfz4fzOPFFTqJR1UV7BfzN8yADRiAo4wcnU9wGXX1Yk2Ji3Zxh940XMnHcSZrIzCBH18SH7X9PjRbdFB1BKG-5M2Gk1CvA2L4lUw2WY87lJpeDAP2ywld1U7IswTR_WAISC2TPSw4LbbWKRVd5GzxCyohm6_Zd4pjdgpBMLUCdm-H6SOE4RtEQjUMWWNg6b2AwLSuNAe8vJaya8A-IjLRaTe6ePsPUoO-6yHOmtS18h4ULV6yYB-Lz6SXJ4sEbV8nzKLR4zex4="  
-
-# Если хочешь оставить жирный шрифт только в определенных чатах, 
-# оставь CHANNEL, но для "везде" мы убрали привязку к каналу.
 # ===================================
 
 client = TelegramClient(StringSession(SESSION_STR), API_ID, API_HASH)
@@ -19,88 +17,57 @@ LAST_NICK = None
 
 # ---------- Функция получения времени МСК ----------
 def get_msk_time():
+    # Сервера хостингов работают по UTC. МСК = UTC+3.
     now_utc = datetime.utcnow()
     now_msk = now_utc + timedelta(hours=3)
-    return now_msk.strftime("%H:%M")
+    return now_msk.strftime("[%H:%M]")
 
-# ---------- 1. Анимация сердечек + время в нике ----------
-async def update_nick_animation():
+# ---------- 1. Ник с временем ----------
+async def update_nick_time():
     global LAST_NICK
-    frame = 0
-    
-    # Кадры "анимации" сердечек
-    hearts_frames = [
-        "♡ ♡ ♡",
-        "♥ ♡ ♡",
-        "♥ ♥ ♡",
-        "♥ ♥ ♥",
-        "♥ ♥ ♡",
-        "♥ ♡ ♡"
-    ]
-
     while True:
         now_str = get_msk_time()
         
-        # Берем текущий кадр
-        current_hearts = hearts_frames[frame]
-        # Формат ника: [Время] Сердечки
-        new_nick = f"[{now_str}] {current_hearts}"
-
-        # Меняем ник только если он отличается от предыдущего
-        if new_nick != LAST_NICK:
+        if now_str != LAST_NICK:
             try:
-                # ВАЖНО: здесь мы меняем last_name (фамилию). 
-                # Если хочешь, чтобы менялось имя, используй first_name=new_nick
-                await client(UpdateProfileRequest(last_name=new_nick))
-                LAST_NICK = new_nick
-                print(f"[nick] Ник обновлен: {new_nick}")
+                # Меняем фамилию на время
+                await client(UpdateProfileRequest(last_name=now_str))
+                LAST_NICK = now_str
+                print(f"[nick] Фамилия обновлена на МСК время: {now_str}")
             except Exception as e:
-                print(f"[nick] Ошибка обновления (возможно FloodWait): {e}")
+                print(f"[nick] Ошибка обновления: {e}")
         
-        # Переключаем кадр
-        frame = (frame + 1) % len(hearts_frames)
-        
-        # Ждем 60 секунд. Telegram не даст менять профиль чаще.
-        await asyncio.sleep(60)
-
+        await asyncio.sleep(15)
 
 # ---------- 2. Жирный шрифт ВЕЗДЕ ----------
 @client.on(events.NewMessage(outgoing=True))
 async def auto_format_everywhere(event):
-    """
-    Ловит ВСЕ исходящие сообщения от твоего аккаунта.
-    """
     text = event.raw_text
     
-    # Игнорируем пустые сообщения, медиа без текста и уже отформатированные
+    # Игнорируем пустые сообщения, медиа и уже отформатированные
     if not text or text.startswith("**—"):
         return
         
-    # Игнорируем сервисные сообщения (например, "Вы зашли в группу")
     if event.message.action:
         return
 
     formatted = f"**— {text}**"
     try:
-        # Пытаемся отредактировать сообщение
         await event.edit(formatted, parse_mode="markdown")
         print(f"[format] Отредактировано в чате {event.chat_id}: {text[:20]}...")
-    except Exception as e:
-        # Если бот не админ в чужом канале или прошло много времени — 
-        # Telegram выдаст ошибку, мы её просто проигнорируем, чтобы не спамить в логи.
+    except Exception:
+        # Игнорируем ошибки (например, нет прав на редактирование)
         pass
-
 
 async def main():
     await client.start()
     me = await client.get_me()
     print(f"Успешный вход: {me.first_name} (@{me.username})")
 
-    # Запускаем фоновую задачу
-    asyncio.create_task(update_nick_animation())
+    # Запускаем фоновую задачу обновления времени
+    asyncio.create_task(update_nick_time())
 
     print("Бот запущен. Жирный шрифт включен ВЕЗДЕ.")
-    print("Анимация сердечек в нике включена (обновление раз в минуту).")
     
     await client.run_until_disconnected()
 
