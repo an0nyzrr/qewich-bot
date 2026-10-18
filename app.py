@@ -16,21 +16,31 @@ CHANNEL = "@qnewich"
 # ===================================
 
 client = TelegramClient(StringSession(SESSION_STR), API_ID, API_HASH)
+LAST_NICK = None # Переменная для хранения последнего установленного ника
+
+# ---------- Функция получения времени МСК ----------
+def get_msk_time():
+    # Указываем часовой пояс UTC+3 (Europe/Moscow)
+    now_msk = datetime.now(ZoneInfo("Europe/Moscow"))
+    return now_msk.strftime("[%H:%M]")
 
 # ---------- 1. Ник с временем ----------
 async def update_nick_time():
-    """Обновляет фамилию/имя так, чтобы в профиле было [ЧЧ:ММ]."""
+    global LAST_NICK
     while True:
-        now = datetime.now().strftime("[%H:%M]")
-        try:
-            # Меняем last_name на время. First_name не трогаем.
-            await client(UpdateProfileRequest(last_name=now))
-            print(f"[nick] обновлён: {now}")
-        except Exception as e:
-            print(f"[nick] ошибка: {e}")
+        now_str = get_msk_time()
         
-        # Ждем 60 секунд до следующего обновления
-        await asyncio.sleep(60)
+        # Меняем ник только если время изменилось, чтобы не спамить API Telegram
+        if now_str != LAST_NICK:
+            try:
+                await client(UpdateProfileRequest(last_name=now_str))
+                LAST_NICK = now_str
+                print(f"[nick] Фамилия обновлена на МСК время: {now_str}")
+            except Exception as e:
+                print(f"[nick] Ошибка обновления: {e}")
+        
+        # Ждем 15 секунд и проверяем снова
+        await asyncio.sleep(15)
 
 
 # ---------- 2. Автоформат своих сообщений в канале ----------
@@ -44,13 +54,12 @@ async def auto_format(event):
     if not text or text.startswith("**—"):
         return
 
-    # Форматируем текст
     formatted = f"**— {text}**"
     try:
         await event.edit(formatted, parse_mode="markdown")
         print(f"[format] переформатировано: {text[:30]}...")
     except Exception as e:
-        print(f"[format] ошибка (возможно, нет прав?): {e}")
+        print(f"[format] ошибка: {e}")
 
 
 async def main():
@@ -62,8 +71,7 @@ async def main():
     asyncio.create_task(update_nick_time())
 
     print(f"Слушаю канал: {CHANNEL}")
-    print("Напиши что-нибудь в канал — сообщение станет жирным с тире.")
-    print("Для остановки нажми Ctrl+C")
+    print("Бот запущен. Время используется по МСК (UTC+3).")
     
     await client.run_until_disconnected()
 
