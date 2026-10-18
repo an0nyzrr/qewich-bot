@@ -1,6 +1,5 @@
 import asyncio
-from datetime import datetime
-import pytz  # Используем pytz вместо zoneinfo
+from datetime import datetime, timedelta
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.account import UpdateProfileRequest
@@ -21,9 +20,9 @@ LAST_NICK = None
 
 # ---------- Функция получения времени МСК ----------
 def get_msk_time():
-    # Устанавливаем часовой пояс Europe/Moscow через pytz
-    msk_tz = pytz.timezone('Europe/Moscow')
-    now_msk = datetime.now(msk_tz)
+    # Сервера хостингов работают по UTC. МСК = UTC+3.
+    now_utc = datetime.utcnow()
+    now_msk = now_utc + timedelta(hours=3)
     return now_msk.strftime("[%H:%M]")
 
 # ---------- 1. Ник с временем ----------
